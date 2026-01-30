@@ -1,0 +1,116 @@
+#!/bin/bash
+show_menu() {
+	echo
+	cat <<-MENU
+    ============================
+      DNSTT Manager by NDEVXLK
+    ============================
+    1) Install DNSTT
+    2) Uninstall DNSTT
+    3) Start DNSTT
+    4) Stop DNSTT
+    5) Get Public Key
+    6) Change Nameserver
+    7) Change Upstream Port
+    8) Exit
+	MENU
+}
+install_dnstt() {
+    if [ ! -d '/root/dnstt' ]; then
+        echo
+        read -p 'Enter nameserver: ' NAMESERVER
+        echo
+        read -p 'Enter upstream port: ' UPSTREAM_PORT
+        sudo systemctl stop systemd-resolved
+        sudo systemctl disable systemd-resolved
+        sudo bash -c 'cat > /etc/resolv.conf' << 'EOF'
+nameserver 1.1.1.1
+EOF
+        sudo hostnamectl set-hostname localhost
+        sudo mkdir /root/dnstt
+        sudo wget -4 -O /root/dnstt/dnstt-server 'https://raw.githubusercontent.com/ndevxlk/dnstt/main/dnstt-server'
+        sudo chmod +x /root/dnstt/dnstt-server
+        sudo /root/dnstt/dnstt-server -gen-key -privkey-file /root/dnstt/server.key -pubkey-file /root/dnstt/server.pub
+        sudo bash -c 'cat > /etc/systemd/system/dnstt.service' << EOF
+[Unit]
+Description = DNSTT Server
+After = network.target
+[Service]
+Type = simple
+User = root
+WorkingDirectory = /root/dnstt
+ExecStart = /root/dnstt/dnstt-server -udp :53 -privkey-file server.key $NAMESERVER 127.0.0.1:$UPSTREAM_PORT
+Restart = always
+[Install]
+WantedBy = multi-user.target
+EOF
+        sudo systemctl daemon-reload
+        sudo systemctl enable dnstt.service
+        sudo systemctl start dnstt.service
+    fi
+    echo -e '\nDNSTT was installed successfully.'
+}
+uninstall_dnstt() {
+    echo
+    read -rp 'Press enter to continue...' _
+    if [ -d '/root/dnstt' ]; then
+        stop_dnstt
+        sudo rm /etc/systemd/system/dnstt.service
+        sudo systemctl daemon-reload
+        sudo rm -rf /root/dnstt
+    fi
+    echo -e '\nDNSTT was uninstalled successfully.'
+}
+start_dnstt() {
+    sudo systemctl start dnstt.service
+    echo -e '\nDNSTT was started successfully.'
+}
+stop_dnstt() {
+    sudo systemctl stop dnstt.service
+    echo -e '\nDNSTT was stopped successfully.'
+}
+get_pubkey() {
+    if [ ! -f "/root/dnstt/server.pub" ]; then
+        sudo /root/dnstt/dnstt-server -gen-key -privkey-file /root/dnstt/server.key -pubkey-file /root/dnstt/server.pub
+    fi
+    echo -e "\nPublic Key: $(cat /root/dnstt/server.pub)"
+}
+change_ns() {
+    echo
+    read -p 'Enter nameserver: ' NAMESERVER
+    sudo sed -i "s/\(-privkey-file server.key \)[^ ]*/\1${NAMESERVER}/" /etc/systemd/system/dnstt.service
+    sudo systemctl daemon-reload
+    stop_dnstt
+    start_dnstt
+    echo -e '\nNameserver was changed successfully.'
+}
+change_uport() {
+    echo
+    read -p 'Enter upstream port: ' UPSTREAM_PORT
+    sudo sed -i "s/127\.0\.0\.1:[0-9]\+/127.0.0.1:${UPSTREAM_PORT}/" /etc/systemd/system/dnstt.service
+    sudo systemctl daemon-reload
+    stop_dnstt
+    start_dnstt
+    echo -e '\nUpstream port was changed successfully.'
+}
+if [ "$EUID" -ne 0 ]; then
+    echo -e '\nYou must run this script as the root user!\n'
+    exit 1
+fi
+while true; do
+    show_menu
+    read -rp $'\nChoose an option. [1-8]: ' OPTION
+    case "$OPTION" in
+        1) install_dnstt ;;
+        2) uninstall_dnstt ;;
+        3) start_dnstt ;;
+        4) stop_dnstt ;;
+        5) get_pubkey ;;
+        6) change_ns ;;
+        7) change_uport ;;
+        8) echo -e '\nBye.\n'; exit 0 ;;
+        *) echo -e '\nInvalid option. Choose 1-8.' ;;
+    esac
+    echo
+    read -rp 'Press enter to continue...' _
+done
