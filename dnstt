@@ -23,9 +23,9 @@ install_dnstt() {
         read -p 'Enter upstream port: ' UPSTREAM_PORT
         sudo mkdir /root/dnstt
         if [[ "$(uname -m)" == "x86_64" ]]; then
-            sudo wget -4 -O /root/dnstt/dnstt-server 'https://raw.githubusercontent.com/ndevxlk/dnstt/main/dnstt-server-x86_64'
+            sudo wget -4 -O /root/dnstt/dnstt-server 'https://raw.githubusercontent.com/ndevxlk/dnstt/main/dnstt-server-amd64'
         else
-            sudo wget -4 -O /root/dnstt/dnstt-server 'https://raw.githubusercontent.com/ndevxlk/dnstt/main/dnstt-server-aarch64'
+            sudo wget -4 -O /root/dnstt/dnstt-server 'https://raw.githubusercontent.com/ndevxlk/dnstt/main/dnstt-server-arm64'
         fi
         sudo chmod +x /root/dnstt/dnstt-server
         sudo /root/dnstt/dnstt-server -gen-key -privkey-file /root/dnstt/server.key -pubkey-file /root/dnstt/server.pub
